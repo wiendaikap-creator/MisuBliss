@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { type Product } from '@/lib/store'
 import * as db from '@/lib/supabase/db'
 import { DashboardShell, DashboardHeader } from '@/components/dashboard/dashboard-shell'
@@ -14,7 +14,9 @@ import {
   Trash2, 
   X,
   Package,
-  Loader2
+  Loader2,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 function ProductForm({ 
@@ -30,11 +32,20 @@ function ProductForm({
     name: product?.name || '',
     description: product?.description || '',
     price: product?.price?.toString() || '',
-    image: product?.image || '/products/default.jpg',
+    image: product?.image || '',
     category: product?.category || 'single' as const,
     isAvailable: product?.isAvailable ?? true,
   })
   const [saving, setSaving] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleImageFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setFormData((prev) => ({ ...prev, image: e.target?.result as string }))
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,8 +62,8 @@ function ProductForm({
 
   return (
     <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg bg-card">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-border">
+      <Card className="w-full max-w-lg bg-card max-h-[90vh] overflow-y-auto">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border sticky top-0 bg-card z-10">
           <CardTitle className="text-foreground">
             {product ? 'Edit Produk' : 'Tambah Produk Baru'}
           </CardTitle>
@@ -62,6 +73,61 @@ function ProductForm({
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Image Upload — at the top */}
+            <div className="space-y-2">
+              <Label>Foto Produk</Label>
+              {formData.image ? (
+                <div className="relative group rounded-xl overflow-hidden border border-border">
+                  <img
+                    src={formData.image}
+                    alt="Preview produk"
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="bg-white text-foreground"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <Upload size={14} className="mr-1" /> Ganti Foto
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="bg-white text-destructive"
+                      onClick={() => setFormData((prev) => ({ ...prev, image: '' }))}
+                    >
+                      <X size={14} className="mr-1" /> Hapus
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full h-40 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                >
+                  <ImageIcon size={32} />
+                  <span className="text-sm font-medium">Klik untuk upload foto produk</span>
+                  <span className="text-xs">PNG, JPG. Maks 5MB</span>
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageFile(file)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name">Nama Produk</Label>
               <Input
@@ -76,13 +142,13 @@ function ProductForm({
             
             <div className="space-y-2">
               <Label htmlFor="description">Deskripsi</Label>
-              <Input
+              <textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Deskripsi singkat produk"
-                required
-                className="bg-input"
+                placeholder="Deskripsi lengkap produk"
+                className="w-full min-h-[80px] px-3 py-2 rounded-md border border-border bg-input text-foreground resize-none"
+                rows={3}
               />
             </div>
             
@@ -150,7 +216,6 @@ export default function ProductsPage() {
   const fetchProducts = useCallback(async () => {
     try {
       const data = await db.getProducts()
-      // map snake_case dari Supabase ke camelCase
       setProducts(data.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -179,6 +244,21 @@ export default function ProductsPage() {
     }).format(price)
   }
 
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product)
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Hapus produk ini?')) return
+    try {
+      await db.deleteProduct(id)
+      fetchProducts()
+    } catch (err) {
+      console.error('Gagal menghapus produk:', err)
+    }
+  }
+
   const handleSave = async (data: Omit<Product, 'id'>) => {
     const payload = {
       name: data.name,
@@ -198,27 +278,16 @@ export default function ProductsPage() {
     fetchProducts()
   }
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product)
-    setShowForm(true)
-  }
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
-      await db.deleteProduct(id)
-      fetchProducts()
-    }
-  }
-
   return (
     <DashboardShell>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <DashboardHeader 
-          title="Kelola Produk" 
-          description="Tambah, edit, atau hapus produk tiramisu Anda"
-        />
-        <Button 
-          onClick={() => setShowForm(true)}
+      <DashboardHeader
+        title="Produk"
+        description="Kelola menu dan produk yang tersedia"
+      />
+
+      <div className="flex justify-end mb-4">
+        <Button
+          onClick={() => { setEditingProduct(undefined); setShowForm(true) }}
           className="bg-primary text-primary-foreground hover:opacity-90"
         >
           <Plus size={18} className="mr-2" />
@@ -242,6 +311,7 @@ export default function ProductsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Foto</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Produk</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Kategori</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Harga</th>
@@ -252,6 +322,19 @@ export default function ProductsPage() {
                 <tbody>
                   {products.map((product) => (
                     <tr key={product.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                      <td className="py-4 px-6">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Package size={20} className="text-muted-foreground" />
+                          )}
+                        </div>
+                      </td>
                       <td className="py-4 px-6">
                         <div>
                           <p className="font-medium text-foreground">{product.name}</p>

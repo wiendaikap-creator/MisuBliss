@@ -8,7 +8,15 @@ interface Settings {
   about_title?: string
   about_description?: string
   about_image_url?: string
+  about_cards_json?: string
 }
+
+const DEFAULT_CARDS = [
+  { icon: '🥚', title: 'Bahan Segar', desc: 'Dipilih setiap hari dari supplier terpercaya' },
+  { icon: '❤️', title: 'Dibuat dengan Cinta', desc: 'Setiap kue dikerjakan dengan detail dan dedikasi' },
+  { icon: '🎨', title: 'Desain Custom', desc: 'Bisa disesuaikan dengan tema dan keinginan Anda' },
+  { icon: '🚚', title: 'Pengiriman Aman', desc: 'Dikemas khusus agar tiba dalam kondisi sempurna' },
+]
 
 export default function AboutSection() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -17,12 +25,13 @@ export default function AboutSection() {
     db.getSettings().then(setSettings).catch(console.error)
   }, [])
 
-  const features = [
-    { icon: '🥚', title: 'Bahan Segar', desc: 'Dipilih setiap hari dari supplier terpercaya' },
-    { icon: '❤️', title: 'Dibuat dengan Cinta', desc: 'Setiap kue dikerjakan dengan detail dan dedikasi' },
-    { icon: '🎨', title: 'Desain Custom', desc: 'Bisa disesuaikan dengan tema dan keinginan Anda' },
-    { icon: '🚚', title: 'Pengiriman Aman', desc: 'Dikemas khusus agar tiba dalam kondisi sempurna' },
-  ]
+  let features = DEFAULT_CARDS
+  try {
+    if (settings?.about_cards_json) {
+      const parsed = JSON.parse(settings.about_cards_json)
+      if (Array.isArray(parsed) && parsed.length > 0) features = parsed
+    }
+  } catch {}
 
   return (
     <section
@@ -99,9 +108,9 @@ export default function AboutSection() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {features.map((f) => (
+              {features.map((f, i) => (
                 <div
-                  key={f.title}
+                  key={i}
                   className="p-4 rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
                   style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(212, 149, 106, 0.15)' }}
                 >

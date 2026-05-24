@@ -19,6 +19,24 @@ interface NavItem {
   order_index: number
 }
 
+function InstagramIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <circle cx="12" cy="12" r="4"/>
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+  )
+}
+
+function TikTokIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
+    </svg>
+  )
+}
+
 export default function Footer() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [navItems, setNavItems] = useState<NavItem[]>([])
@@ -137,10 +155,11 @@ export default function Footer() {
                     href={settings.instagram_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-lg transition-all hover:scale-110"
+                    className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 hover:opacity-90"
+                    style={{ background: 'linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)', color: 'white' }}
                     title="Instagram"
                   >
-                    📸
+                    <InstagramIcon size={18} />
                   </a>
                 )}
                 {settings?.tiktok_url && (
@@ -148,10 +167,11 @@ export default function Footer() {
                     href={settings.tiktok_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-lg transition-all hover:scale-110"
+                    className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 hover:opacity-90"
+                    style={{ background: '#010101', color: 'white' }}
                     title="TikTok"
                   >
-                    🎵
+                    <TikTokIcon size={18} />
                   </a>
                 )}
               </div>

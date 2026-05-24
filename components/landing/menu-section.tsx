@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as db from '@/lib/supabase/db'
 
 interface Product {
@@ -9,6 +9,7 @@ interface Product {
   description: string
   price: number
   image_url?: string
+  image?: string
   category?: string
   is_available?: boolean
 }
@@ -18,6 +19,10 @@ export default function MenuSection() {
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState('all')
   const [addedToCart, setAddedToCart] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
 
   useEffect(() => {
     db.getProducts()
@@ -41,6 +46,23 @@ export default function MenuSection() {
     if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const getImage = (product: Product) => product.image_url || product.image
+
+  // Mouse drag scroll
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return
+    setIsDragging(true)
+    setStartX(e.pageX - scrollRef.current.offsetLeft)
+    setScrollLeft(scrollRef.current.scrollLeft)
+  }
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return
+    e.preventDefault()
+    const x = e.pageX - scrollRef.current.offsetLeft
+    scrollRef.current.scrollLeft = scrollLeft - (x - startX)
+  }
+  const onMouseUp = () => setIsDragging(false)
+
   return (
     <section
       id="menu"
@@ -50,10 +72,7 @@ export default function MenuSection() {
       {/* Decorative top wave */}
       <div className="absolute top-0 left-0 right-0 overflow-hidden leading-none" style={{ height: '60px' }}>
         <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-full">
-          <path
-            d="M0,30 C360,60 1080,0 1440,30 L1440,0 L0,0 Z"
-            fill="#FFF5F0"
-          />
+          <path d="M0,30 C360,60 1080,0 1440,30 L1440,0 L0,0 Z" fill="#FFF5F0" />
         </svg>
       </div>
 
@@ -97,89 +116,184 @@ export default function MenuSection() {
           </div>
         )}
 
-        {/* Product Grid */}
+        {/* Product Cards — horizontal swipe on mobile, grid on desktop */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {[...Array(8)].map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl overflow-hidden animate-pulse"
-                style={{ background: 'rgba(255,255,255,0.6)', height: '280px' }}
-              />
-            ))}
-          </div>
+          <>
+            {/* Mobile skeleton */}
+            <div className="flex gap-4 overflow-x-auto pb-4 md:hidden" style={{ scrollbarWidth: 'none' }}>
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl overflow-hidden animate-pulse flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.6)', width: '240px', height: '360px' }}
+                />
+              ))}
+            </div>
+            {/* Desktop skeleton */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-5">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl overflow-hidden animate-pulse"
+                  style={{ background: 'rgba(255,255,255,0.6)', height: '380px' }}
+                />
+              ))}
+            </div>
+          </>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🍰</div>
             <p style={{ color: '#8B6355' }}>Belum ada produk tersedia</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filtered.map((product) => (
-              <div
-                key={product.id}
-                className="group rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-xl cursor-pointer"
-                style={{
-                  background: 'rgba(255,255,255,0.85)',
-                  border: '1px solid rgba(212, 149, 106, 0.15)',
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
-                {/* Image */}
-                <div className="relative aspect-square overflow-hidden">
-                  {product.image_url ? (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full flex items-center justify-center text-5xl"
-                      style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
-                    >
-                      🎂
-                    </div>
-                  )}
-                  {product.category && (
-                    <span
-                      className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium"
-                      style={{ background: 'rgba(255,255,255,0.9)', color: '#8B5E3C' }}
-                    >
-                      {product.category}
-                    </span>
-                  )}
-                </div>
+          <>
+            {/* Mobile: horizontal swipe */}
+            <div
+              ref={scrollRef}
+              className="flex gap-4 overflow-x-auto pb-4 md:hidden select-none"
+              style={{ scrollbarWidth: 'none', cursor: isDragging ? 'grabbing' : 'grab', scrollSnapType: 'x mandatory' }}
+              onMouseDown={onMouseDown}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={onMouseUp}
+            >
+              {filtered.map((product) => (
+                <div
+                  key={product.id}
+                  className="group rounded-2xl overflow-hidden flex-shrink-0 flex flex-col"
+                  style={{
+                    width: '240px',
+                    scrollSnapAlign: 'start',
+                    background: 'rgba(255,255,255,0.85)',
+                    border: '1px solid rgba(212, 149, 106, 0.15)',
+                    backdropFilter: 'blur(8px)',
+                  }}
+                >
+                  {/* Image */}
+                  <div className="relative overflow-hidden" style={{ height: '180px' }}>
+                    {getImage(product) ? (
+                      <img
+                        src={getImage(product)}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-5xl"
+                        style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
+                      >
+                        🎂
+                      </div>
+                    )}
+                    {product.category && (
+                      <span
+                        className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ background: 'rgba(255,255,255,0.9)', color: '#8B5E3C' }}
+                      >
+                        {product.category}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Info */}
-                <div className="p-4">
-                  <h3 className="font-semibold text-sm mb-1 line-clamp-1" style={{ color: '#5C3D2E' }}>
-                    {product.name}
-                  </h3>
-                  <p className="text-xs mb-3 line-clamp-2 leading-relaxed" style={{ color: '#8B6355' }}>
-                    {product.description}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm" style={{ color: '#C1806B', fontFamily: "'Playfair Display', serif" }}>
-                      {formatPrice(product.price)}
-                    </span>
-                    <button
-                      onClick={() => handleOrder(product)}
-                      className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all duration-200 hover:shadow-md active:scale-95"
-                      style={{
-                        background:
-                          addedToCart === product.id
-                            ? '#6BA86B'
-                            : 'linear-gradient(135deg, #D4956A, #C1806B)',
-                      }}
-                    >
-                      {addedToCart === product.id ? '✓ OK' : 'Pesan'}
-                    </button>
+                  {/* Info */}
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="font-semibold text-sm mb-1" style={{ color: '#5C3D2E' }}>
+                      {product.name}
+                    </h3>
+                    <p className="text-xs mb-3 leading-relaxed flex-1" style={{ color: '#8B6355' }}>
+                      {product.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <span className="font-bold text-sm" style={{ color: '#C1806B', fontFamily: "'Playfair Display', serif" }}>
+                        {formatPrice(product.price)}
+                      </span>
+                      <button
+                        onClick={() => handleOrder(product)}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all duration-200 hover:shadow-md active:scale-95"
+                        style={{
+                          background:
+                            addedToCart === product.id
+                              ? '#6BA86B'
+                              : 'linear-gradient(135deg, #D4956A, #C1806B)',
+                        }}
+                      >
+                        {addedToCart === product.id ? '✓ OK' : 'Pesan'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            {/* Desktop: grid */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-5">
+              {filtered.map((product) => (
+                <div
+                  key={product.id}
+                  className="group rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-xl cursor-pointer flex flex-col"
+                  style={{
+                    background: 'rgba(255,255,255,0.85)',
+                    border: '1px solid rgba(212, 149, 106, 0.15)',
+                    backdropFilter: 'blur(8px)',
+                  }}
+                >
+                  {/* Image */}
+                  <div className="relative overflow-hidden" style={{ height: '200px' }}>
+                    {getImage(product) ? (
+                      <img
+                        src={getImage(product)}
+                        alt={product.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-5xl"
+                        style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
+                      >
+                        🎂
+                      </div>
+                    )}
+                    {product.category && (
+                      <span
+                        className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ background: 'rgba(255,255,255,0.9)', color: '#8B5E3C' }}
+                      >
+                        {product.category}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="font-semibold text-sm mb-1" style={{ color: '#5C3D2E' }}>
+                      {product.name}
+                    </h3>
+                    <p className="text-xs mb-3 leading-relaxed flex-1" style={{ color: '#8B6355' }}>
+                      {product.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <span className="font-bold text-sm" style={{ color: '#C1806B', fontFamily: "'Playfair Display', serif" }}>
+                        {formatPrice(product.price)}
+                      </span>
+                      <button
+                        onClick={() => handleOrder(product)}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all duration-200 hover:shadow-md active:scale-95"
+                        style={{
+                          background:
+                            addedToCart === product.id
+                              ? '#6BA86B'
+                              : 'linear-gradient(135deg, #D4956A, #C1806B)',
+                        }}
+                      >
+                        {addedToCart === product.id ? '✓ OK' : 'Pesan'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </section>

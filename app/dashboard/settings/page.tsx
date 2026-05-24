@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { type Bundle, type Testimonial } from '@/lib/store'
 import * as db from '@/lib/supabase/db'
 import { DashboardShell, DashboardHeader } from '@/components/dashboard/dashboard-shell'
@@ -21,7 +21,10 @@ import {
   Pencil,
   Trash2,
   Instagram,
-  Loader2
+  Loader2,
+  Upload,
+  Layout,
+  Info,
 } from 'lucide-react'
 
 function TikTokIcon({ size = 20 }: { size?: number }) {
@@ -29,6 +32,95 @@ function TikTokIcon({ size = 20 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
     </svg>
+  )
+}
+
+// Reusable image uploader component
+function ImageUploader({
+  label,
+  value,
+  onChange,
+  onRemove,
+  placeholder = 'Pilih gambar...',
+  previewClass = 'w-full h-40 object-cover rounded-lg',
+}: {
+  label?: string
+  value: string
+  onChange: (url: string) => void
+  onRemove?: () => void
+  placeholder?: string
+  previewClass?: string
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleFile = (file: File) => {
+    if (!file) return
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string
+      onChange(dataUrl)
+      setUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="space-y-2">
+      {label && <Label>{label}</Label>}
+      {value ? (
+        <div className="relative group">
+          <img src={value} alt="Preview" className={previewClass} style={{ objectFit: 'cover' }} />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-white text-foreground"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload size={14} className="mr-1" /> Ganti
+            </Button>
+            {onRemove && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white text-destructive"
+                onClick={onRemove}
+              >
+                <Trash2 size={14} className="mr-1" /> Hapus
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-full h-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+        >
+          {uploading ? (
+            <Loader2 size={24} className="animate-spin" />
+          ) : (
+            <>
+              <Upload size={24} />
+              <span className="text-sm">{placeholder}</span>
+            </>
+          )}
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleFile(file)
+          e.target.value = ''
+        }}
+      />
+    </div>
   )
 }
 
@@ -45,6 +137,21 @@ export default function SettingsPage() {
     logoUrl: '',
     instagramUrl: '',
     tiktokUrl: '',
+    // Hero
+    heroTitle: '',
+    heroSubtitle: '',
+    heroImageUrl: '',
+    // About
+    aboutTitle: '',
+    aboutDescription: '',
+    aboutImageUrl: '',
+    // About cards (stored as JSON string in about_cards_json field)
+    aboutCards: [
+      { icon: '🥚', title: 'Bahan Segar', desc: 'Dipilih setiap hari dari supplier terpercaya' },
+      { icon: '❤️', title: 'Dibuat dengan Cinta', desc: 'Setiap kue dikerjakan dengan detail dan dedikasi' },
+      { icon: '🎨', title: 'Desain Custom', desc: 'Bisa disesuaikan dengan tema dan keinginan Anda' },
+      { icon: '🚚', title: 'Pengiriman Aman', desc: 'Dikemas khusus agar tiba dalam kondisi sempurna' },
+    ] as { icon: string; title: string; desc: string }[],
   })
   const [serviceAreas, setServiceAreas] = useState<string[]>([])
   const [newArea, setNewArea] = useState('')
@@ -56,7 +163,7 @@ export default function SettingsPage() {
   const [showBundleForm, setShowBundleForm] = useState(false)
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null)
   const [bundleForm, setBundleForm] = useState({
-    name: '', description: '', price: 0, originalPrice: 0, items: '',
+    name: '', description: '', price: 0, originalPrice: 0, items: '', image: '',
   })
 
   // Testimonial form state
@@ -75,6 +182,12 @@ export default function SettingsPage() {
         db.getTestimonials(),
       ])
       if (settingsData) {
+        let aboutCards = formData.aboutCards
+        try {
+          if ((settingsData as any).about_cards_json) {
+            aboutCards = JSON.parse((settingsData as any).about_cards_json)
+          }
+        } catch {}
         setFormData({
           storeName: settingsData.store_name || '',
           tagline: settingsData.tagline || '',
@@ -83,6 +196,13 @@ export default function SettingsPage() {
           logoUrl: settingsData.logo_url || '',
           instagramUrl: settingsData.instagram_url || '',
           tiktokUrl: settingsData.tiktok_url || '',
+          heroTitle: (settingsData as any).hero_title || '',
+          heroSubtitle: (settingsData as any).hero_subtitle || '',
+          heroImageUrl: (settingsData as any).hero_image_url || '',
+          aboutTitle: (settingsData as any).about_title || '',
+          aboutDescription: (settingsData as any).about_description || '',
+          aboutImageUrl: (settingsData as any).about_image_url || '',
+          aboutCards,
         })
         setServiceAreas(settingsData.service_areas || [])
       }
@@ -110,9 +230,7 @@ export default function SettingsPage() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchAll()
-  }, [fetchAll])
+  useEffect(() => { fetchAll() }, [fetchAll])
 
   const handleAddArea = () => {
     if (newArea.trim() && !serviceAreas.includes(newArea.trim())) {
@@ -136,8 +254,15 @@ export default function SettingsPage() {
         logo_url: formData.logoUrl,
         instagram_url: formData.instagramUrl,
         tiktok_url: formData.tiktokUrl,
+        hero_title: formData.heroTitle,
+        hero_subtitle: formData.heroSubtitle,
+        hero_image_url: formData.heroImageUrl,
+        about_title: formData.aboutTitle,
+        about_description: formData.aboutDescription,
+        about_image_url: formData.aboutImageUrl,
+        about_cards_json: JSON.stringify(formData.aboutCards),
         service_areas: serviceAreas,
-      })
+      } as any)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -157,10 +282,11 @@ export default function SettingsPage() {
         price: bundle.price,
         originalPrice: bundle.originalPrice,
         items: bundle.items.join('\n'),
+        image: bundle.image || '',
       })
     } else {
       setEditingBundle(null)
-      setBundleForm({ name: '', description: '', price: 0, originalPrice: 0, items: '' })
+      setBundleForm({ name: '', description: '', price: 0, originalPrice: 0, items: '', image: '' })
     }
     setShowBundleForm(true)
   }
@@ -171,7 +297,7 @@ export default function SettingsPage() {
       description: bundleForm.description,
       price: bundleForm.price,
       original_price: bundleForm.originalPrice,
-      image: '/products/bundle.jpg',
+      image: bundleForm.image || '/products/bundle.jpg',
       items: bundleForm.items.split('\n').filter(Boolean),
       is_available: true,
     }
@@ -181,7 +307,7 @@ export default function SettingsPage() {
       await db.addBundle(payload)
     }
     setShowBundleForm(false)
-    setBundleForm({ name: '', description: '', price: 0, originalPrice: 0, items: '' })
+    setBundleForm({ name: '', description: '', price: 0, originalPrice: 0, items: '', image: '' })
     setEditingBundle(null)
     fetchAll()
   }
@@ -235,6 +361,12 @@ export default function SettingsPage() {
     }
   }
 
+  const updateAboutCard = (index: number, field: 'icon' | 'title' | 'desc', value: string) => {
+    const cards = [...formData.aboutCards]
+    cards[index] = { ...cards[index], [field]: value }
+    setFormData({ ...formData, aboutCards: cards })
+  }
+
   if (loading) {
     return (
       <DashboardShell>
@@ -245,15 +377,17 @@ export default function SettingsPage() {
     )
   }
 
+  const logoFileRef = useRef<HTMLInputElement>(null)
+
   return (
     <DashboardShell>
       <DashboardHeader 
         title="Pengaturan" 
-        description="Kelola profil toko, bundle, dan testimoni"
+        description="Kelola profil toko, hero, tentang kami, bundle, dan testimoni"
       />
 
       <div className="grid gap-6">
-        {/* Store Profile */}
+        {/* ── Store Profile ── */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -285,25 +419,180 @@ export default function SettingsPage() {
               </div>
             </div>
             
+            {/* Logo Upload */}
             <div className="space-y-2">
-              <Label htmlFor="logoUrl">URL Logo</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="logoUrl"
-                  value={formData.logoUrl}
-                  onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-                  placeholder="/logo.png"
-                  className="bg-input"
-                />
-                <Button variant="outline" size="icon" className="flex-shrink-0">
-                  <ImageIcon size={18} />
-                </Button>
+              <Label>Logo Toko</Label>
+              <div className="flex items-center gap-4">
+                {formData.logoUrl ? (
+                  <div className="relative group">
+                    <img
+                      src={formData.logoUrl}
+                      alt="Logo"
+                      className="w-20 h-20 object-contain rounded-xl border border-border bg-muted"
+                    />
+                    <button
+                      onClick={() => setFormData({ ...formData, logoUrl: '' })}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-destructive rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center text-muted-foreground">
+                    <ImageIcon size={28} />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = 'image/*'
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = (ev) => {
+                          setFormData({ ...formData, logoUrl: ev.target?.result as string })
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                      input.click()
+                    }}
+                  >
+                    <Upload size={14} className="mr-1" />
+                    {formData.logoUrl ? 'Ganti Logo' : 'Upload Logo'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">PNG, JPG, SVG. Maks 2MB</p>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Contact Info */}
+        {/* ── Hero Section ── */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Layout size={20} />
+              Hero Section (Landing Page)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="heroTitle">Judul Hero</Label>
+                <Input
+                  id="heroTitle"
+                  value={formData.heroTitle}
+                  onChange={(e) => setFormData({ ...formData, heroTitle: e.target.value })}
+                  placeholder="Kue Cantik, Rasa Istimewa"
+                  className="bg-input"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="heroSubtitle">Subjudul Hero</Label>
+                <Input
+                  id="heroSubtitle"
+                  value={formData.heroSubtitle}
+                  onChange={(e) => setFormData({ ...formData, heroSubtitle: e.target.value })}
+                  placeholder="Dibuat dengan bahan pilihan dan penuh cinta..."
+                  className="bg-input"
+                />
+              </div>
+            </div>
+            <ImageUploader
+              label="Foto Hero"
+              value={formData.heroImageUrl}
+              onChange={(url) => setFormData({ ...formData, heroImageUrl: url })}
+              onRemove={() => setFormData({ ...formData, heroImageUrl: '' })}
+              placeholder="Upload foto untuk ditampilkan di hero section"
+              previewClass="w-full h-52 object-cover rounded-lg"
+            />
+            {formData.heroImageUrl && (
+              <p className="text-xs text-muted-foreground">
+                ✓ Foto hero akan langsung tampil di landing page setelah disimpan.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── About Section ── */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Info size={20} />
+              Tentang Kami (Landing Page)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="aboutTitle">Judul Tentang Kami</Label>
+              <Input
+                id="aboutTitle"
+                value={formData.aboutTitle}
+                onChange={(e) => setFormData({ ...formData, aboutTitle: e.target.value })}
+                placeholder="Kue Buatan Rumah yang Penuh Cinta"
+                className="bg-input"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="aboutDescription">Deskripsi</Label>
+              <textarea
+                id="aboutDescription"
+                value={formData.aboutDescription}
+                onChange={(e) => setFormData({ ...formData, aboutDescription: e.target.value })}
+                placeholder="Ceritakan tentang toko Anda..."
+                className="w-full min-h-[100px] px-3 py-2 rounded-md border border-border bg-input text-foreground resize-none"
+                rows={4}
+              />
+            </div>
+            <ImageUploader
+              label="Foto Tentang Kami"
+              value={formData.aboutImageUrl}
+              onChange={(url) => setFormData({ ...formData, aboutImageUrl: url })}
+              onRemove={() => setFormData({ ...formData, aboutImageUrl: '' })}
+              placeholder="Upload foto untuk bagian Tentang Kami"
+              previewClass="w-full h-52 object-cover rounded-lg"
+            />
+
+            {/* About feature cards */}
+            <div className="space-y-3">
+              <Label>Card Fitur (4 card di bagian Tentang Kami)</Label>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {formData.aboutCards.map((card, i) => (
+                  <div key={i} className="p-3 rounded-lg border border-border bg-muted/30 space-y-2">
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        value={card.icon}
+                        onChange={(e) => updateAboutCard(i, 'icon', e.target.value)}
+                        placeholder="🥚"
+                        className="bg-input w-16 text-center text-lg"
+                        maxLength={4}
+                      />
+                      <Input
+                        value={card.title}
+                        onChange={(e) => updateAboutCard(i, 'title', e.target.value)}
+                        placeholder="Judul card"
+                        className="bg-input flex-1"
+                      />
+                    </div>
+                    <Input
+                      value={card.desc}
+                      onChange={(e) => updateAboutCard(i, 'desc', e.target.value)}
+                      placeholder="Deskripsi singkat..."
+                      className="bg-input"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Contact Info ── */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -363,7 +652,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Service Areas */}
+        {/* ── Service Areas ── */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -405,7 +694,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Bundle Management */}
+        {/* ── Bundle Management ── */}
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -423,12 +712,17 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 {bundles.map((bundle) => (
                   <div key={bundle.id} className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium text-foreground">{bundle.name}</p>
-                      <p className="text-sm text-muted-foreground">{bundle.description}</p>
-                      <p className="text-sm text-primary font-semibold mt-1">
-                        Rp {bundle.price.toLocaleString('id-ID')}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      {bundle.image && (
+                        <img src={bundle.image} alt={bundle.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div>
+                        <p className="font-medium text-foreground">{bundle.name}</p>
+                        <p className="text-sm text-muted-foreground">{bundle.description}</p>
+                        <p className="text-sm text-primary font-semibold mt-1">
+                          Rp {bundle.price.toLocaleString('id-ID')}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleOpenBundleForm(bundle)}>
@@ -445,7 +739,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Testimonial Management */}
+        {/* ── Testimonial Management ── */}
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -524,14 +818,23 @@ export default function SettingsPage() {
       {/* Bundle Form Modal */}
       {showBundleForm && (
         <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg bg-card">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-border">
+          <Card className="w-full max-w-lg bg-card max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border sticky top-0 bg-card z-10">
               <CardTitle>{editingBundle ? 'Edit Bundle' : 'Tambah Bundle'}</CardTitle>
               <Button variant="ghost" size="icon" onClick={() => setShowBundleForm(false)}>
                 <X size={20} />
               </Button>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
+              {/* Image upload for bundle */}
+              <ImageUploader
+                label="Foto Bundle"
+                value={bundleForm.image}
+                onChange={(url) => setBundleForm({ ...bundleForm, image: url })}
+                onRemove={() => setBundleForm({ ...bundleForm, image: '' })}
+                placeholder="Upload foto bundle"
+                previewClass="w-full h-40 object-cover rounded-lg"
+              />
               <div className="space-y-2">
                 <Label>Nama Bundle</Label>
                 <Input
@@ -596,8 +899,8 @@ export default function SettingsPage() {
       {/* Testimonial Form Modal */}
       {showTestimonialForm && (
         <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg bg-card">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-border">
+          <Card className="w-full max-w-lg bg-card max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border sticky top-0 bg-card z-10">
               <CardTitle>{editingTestimonial ? 'Edit Testimoni' : 'Tambah Testimoni'}</CardTitle>
               <Button variant="ghost" size="icon" onClick={() => setShowTestimonialForm(false)}>
                 <X size={20} />
@@ -613,15 +916,14 @@ export default function SettingsPage() {
                   className="bg-input"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>URL Foto (opsional)</Label>
-                <Input
-                  value={testimonialForm.image}
-                  onChange={(e) => setTestimonialForm({ ...testimonialForm, image: e.target.value })}
-                  placeholder="/testimonials/sarah.jpg"
-                  className="bg-input"
-                />
-              </div>
+              <ImageUploader
+                label="Foto Pelanggan (opsional)"
+                value={testimonialForm.image}
+                onChange={(url) => setTestimonialForm({ ...testimonialForm, image: url })}
+                onRemove={() => setTestimonialForm({ ...testimonialForm, image: '' })}
+                placeholder="Upload foto pelanggan"
+                previewClass="w-24 h-24 rounded-full object-cover"
+              />
               <div className="space-y-2">
                 <Label>Komentar</Label>
                 <textarea
