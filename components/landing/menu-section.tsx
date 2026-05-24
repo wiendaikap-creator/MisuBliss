@@ -1,96 +1,186 @@
 'use client'
 
-import { useStore, type Product } from '@/lib/store'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { ShoppingBag } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import * as db from '@/lib/supabase/db'
 
-interface ProductCardProps {
-  product: Product
-  onOrder: (product: Product) => void
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  image_url?: string
+  category?: string
+  is_available?: boolean
 }
 
-function ProductCard({ product, onOrder }: ProductCardProps) {
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(price)
+export default function MenuSection() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [addedToCart, setAddedToCart] = useState<string | null>(null)
+
+  useEffect(() => {
+    db.getProducts()
+      .then((data) => setProducts(data.filter((p: Product) => p.is_available !== false)))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const formatPrice = (price: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
+
+  const categories = ['all', ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))] as string[]
+
+  const filtered =
+    activeCategory === 'all' ? products : products.filter((p) => p.category === activeCategory)
+
+  const handleOrder = (product: Product) => {
+    setAddedToCart(product.id)
+    setTimeout(() => setAddedToCart(null), 1500)
+    const el = document.querySelector('#order')
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const flavorColors: Record<string, string> = {
-    'Classic MisuBliss': 'from-amber-100 to-amber-200',
-    'Choco MisuBliss': 'from-amber-200 to-amber-400',
-    'Matcha MisuBliss': 'from-green-100 to-green-200',
-  }
-
-  const bgGradient = flavorColors[product.name] || 'from-primary/20 to-secondary/20'
-
   return (
-    <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 border-border/50 bg-card">
-      <CardHeader className="p-0">
-        <div className={`aspect-square bg-gradient-to-br ${bgGradient} flex items-center justify-center relative overflow-hidden`}>
-          <div className="w-32 h-32 bg-white/50 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-            <span className="text-5xl">
-              {product.name.includes('Classic') ? '☕' : 
-               product.name.includes('Choco') ? '🍫' : 
-               product.name.includes('Matcha') ? '🍵' : '🍰'}
-            </span>
-          </div>
-          {!product.isAvailable && (
-            <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
-              <span className="bg-destructive text-destructive-foreground px-4 py-2 rounded-full font-semibold">
-                Habis
-              </span>
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-6">
-        <h3 className="text-xl font-bold text-foreground mb-2">{product.name}</h3>
-        <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{product.description}</p>
-        <p className="text-2xl font-bold text-primary">{formatPrice(product.price)}</p>
-      </CardContent>
-      <CardFooter className="p-6 pt-0">
-        <Button
-          onClick={() => onOrder(product)}
-          disabled={!product.isAvailable}
-          className="w-full bg-primary text-primary-foreground hover:opacity-90 rounded-full"
-        >
-          <ShoppingBag size={18} className="mr-2" />
-          Pesan
-        </Button>
-      </CardFooter>
-    </Card>
-  )
-}
+    <section
+      id="menu"
+      className="py-24 relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, #FFF0EB 0%, #FADADD 50%, #FFF0EB 100%)' }}
+    >
+      {/* Decorative top wave */}
+      <div className="absolute top-0 left-0 right-0 overflow-hidden leading-none" style={{ height: '60px' }}>
+        <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-full">
+          <path
+            d="M0,30 C360,60 1080,0 1440,30 L1440,0 L0,0 Z"
+            fill="#FFF5F0"
+          />
+        </svg>
+      </div>
 
-interface MenuSectionProps {
-  onOrderProduct: (product: Product) => void
-}
-
-export function MenuSection({ onOrderProduct }: MenuSectionProps) {
-  const { products } = useStore()
-  const singleProducts = products.filter((p) => p.category === 'single')
-
-  return (
-    <section id="menu" className="py-20 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-6">
+        {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Menu <span className="text-primary">Tiramisu</span> Kami
+          <div
+            className="inline-block text-sm font-semibold uppercase tracking-widest mb-3 px-4 py-1.5 rounded-full"
+            style={{ background: 'rgba(212, 149, 106, 0.12)', color: '#D4956A' }}
+          >
+            Menu Kami
+          </div>
+          <h2
+            className="text-3xl md:text-4xl font-bold mb-4"
+            style={{ color: '#5C3D2E', fontFamily: "'Playfair Display', serif" }}
+          >
+            Koleksi Kue Pilihan
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Pilih varian tiramisu favorit Anda. Setiap cup dibuat dengan penuh cinta dan bahan premium.
+          <p className="text-base max-w-lg mx-auto" style={{ color: '#8B6355' }}>
+            Setiap kue dibuat segar setiap hari dengan bahan-bahan berkualitas tinggi
           </p>
         </div>
-        
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {singleProducts.map((product) => (
-            <ProductCard key={product.id} product={product} onOrder={onOrderProduct} />
-          ))}
-        </div>
+
+        {/* Category Filter */}
+        {categories.length > 1 && (
+          <div className="flex flex-wrap justify-center gap-2 mb-10">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className="px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 capitalize"
+                style={
+                  activeCategory === cat
+                    ? { background: 'linear-gradient(135deg, #D4956A, #C1806B)', color: 'white' }
+                    : { background: 'rgba(255,255,255,0.7)', color: '#8B5E3C', border: '1px solid rgba(212, 149, 106, 0.25)' }
+                }
+              >
+                {cat === 'all' ? 'Semua' : cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Product Grid */}
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="rounded-2xl overflow-hidden animate-pulse"
+                style={{ background: 'rgba(255,255,255,0.6)', height: '280px' }}
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">🍰</div>
+            <p style={{ color: '#8B6355' }}>Belum ada produk tersedia</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            {filtered.map((product) => (
+              <div
+                key={product.id}
+                className="group rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-xl cursor-pointer"
+                style={{
+                  background: 'rgba(255,255,255,0.85)',
+                  border: '1px solid rgba(212, 149, 106, 0.15)',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                {/* Image */}
+                <div className="relative aspect-square overflow-hidden">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center text-5xl"
+                      style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
+                    >
+                      🎂
+                    </div>
+                  )}
+                  {product.category && (
+                    <span
+                      className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ background: 'rgba(255,255,255,0.9)', color: '#8B5E3C' }}
+                    >
+                      {product.category}
+                    </span>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-sm mb-1 line-clamp-1" style={{ color: '#5C3D2E' }}>
+                    {product.name}
+                  </h3>
+                  <p className="text-xs mb-3 line-clamp-2 leading-relaxed" style={{ color: '#8B6355' }}>
+                    {product.description}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm" style={{ color: '#C1806B', fontFamily: "'Playfair Display', serif" }}>
+                      {formatPrice(product.price)}
+                    </span>
+                    <button
+                      onClick={() => handleOrder(product)}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all duration-200 hover:shadow-md active:scale-95"
+                      style={{
+                        background:
+                          addedToCart === product.id
+                            ? '#6BA86B'
+                            : 'linear-gradient(135deg, #D4956A, #C1806B)',
+                      }}
+                    >
+                      {addedToCart === product.id ? '✓ OK' : 'Pesan'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )

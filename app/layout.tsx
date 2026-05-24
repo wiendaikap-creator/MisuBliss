@@ -1,30 +1,34 @@
 import type { Metadata } from 'next'
-import { Nunito } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { Playfair_Display, Lato } from 'next/font/google'
 import './globals.css'
 
-const nunito = Nunito({ 
+const playfair = Playfair_Display({
   subsets: ['latin'],
-  variable: '--font-nunito',
+  variable: '--font-playfair',
+  display: 'swap',
+})
+
+const lato = Lato({
+  subsets: ['latin'],
+  weight: ['300', '400', '700'],
+  variable: '--font-lato',
   display: 'swap',
 })
 
 export const metadata: Metadata = {
-  title: 'MisuBliss - Tiramisu Lembut dan Creamy',
-  description: 'A spoonful of bliss. Tiramisu premium di Kota Malang dengan rasa lembut dan creamy yang memanjakan lidah Anda.',
-  keywords: ['tiramisu', 'malang', 'dessert', 'kue', 'premium', 'misubliss'],
+  title: 'Toko Kue',
+  description: 'Kue homemade berkualitas tinggi',
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="id" className={`${nunito.variable} bg-background`}>
-      <body className="font-sans antialiased">
+    <html lang="id" className={`${playfair.variable} ${lato.variable}`}>
+      <body style={{ fontFamily: "'Lato', sans-serif" }}>
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )

@@ -1,86 +1,175 @@
 'use client'
 
-import { useStore } from '@/lib/store'
-import { MapPin, Truck, Clock, Phone } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import * as db from '@/lib/supabase/db'
 
-export function LocationSection() {
-  const { settings } = useStore()
+interface Settings {
+  store_name: string
+  address?: string
+  phone?: string
+  whatsapp_number?: string
+  open_hours?: string
+  maps_embed_url?: string
+  instagram_url?: string
+  tiktok_url?: string
+}
+
+export default function LocationSection() {
+  const [settings, setSettings] = useState<Settings | null>(null)
+
+  useEffect(() => {
+    db.getSettings().then(setSettings).catch(console.error)
+  }, [])
+
+  const waNumber = settings?.whatsapp_number?.replace(/\D/g, '')
+  const waLink = waNumber ? `https://wa.me/${waNumber}` : '#'
 
   return (
-    <section id="location" className="py-20 bg-card">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section
+      id="location"
+      className="py-24 relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, #FFF5F7 0%, #FFF0EB 100%)' }}
+    >
+      <div className="max-w-6xl mx-auto px-6">
+        {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Lokasi & <span className="text-primary">Pengiriman</span>
+          <div
+            className="inline-block text-sm font-semibold uppercase tracking-widest mb-3 px-4 py-1.5 rounded-full"
+            style={{ background: 'rgba(212, 149, 106, 0.12)', color: '#D4956A' }}
+          >
+            Lokasi Kami
+          </div>
+          <h2
+            className="text-3xl md:text-4xl font-bold mb-4"
+            style={{ color: '#5C3D2E', fontFamily: "'Playfair Display', serif" }}
+          >
+            Temukan Kami
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Kami melayani pengiriman dan pickup di area Kota Malang dan sekitarnya
-          </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <div className="flex items-start gap-4 p-4 bg-muted rounded-2xl">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <MapPin size={24} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Alamat Kami</h3>
-                <p className="text-muted-foreground">{settings.address}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 p-4 bg-muted rounded-2xl">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <Truck size={24} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-2">Area Layanan</h3>
-                <div className="flex flex-wrap gap-2">
-                  {settings.serviceAreas.map((area, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium"
+        <div className="grid md:grid-cols-2 gap-8 items-start">
+          {/* Info Cards */}
+          <div className="space-y-4">
+            {[
+              {
+                icon: '📍',
+                title: 'Alamat',
+                value: settings?.address || 'Alamat tersedia di CMS',
+              },
+              {
+                icon: '📞',
+                title: 'Telepon / WhatsApp',
+                value: settings?.phone || settings?.whatsapp_number || 'Nomor tersedia di CMS',
+                href: waLink,
+              },
+              {
+                icon: '🕐',
+                title: 'Jam Operasional',
+                value: settings?.open_hours || 'Senin – Sabtu, 08.00 – 17.00 WIB',
+              },
+            ].map((info) => (
+              <div
+                key={info.title}
+                className="flex gap-4 p-5 rounded-2xl transition-all duration-200 hover:shadow-md"
+                style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(212, 149, 106, 0.15)' }}
+              >
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
+                >
+                  {info.icon}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#D4956A' }}>
+                    {info.title}
+                  </div>
+                  {info.href ? (
+                    <a
+                      href={info.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium hover:underline"
+                      style={{ color: '#5C3D2E' }}
                     >
-                      {area}
-                    </span>
-                  ))}
+                      {info.value}
+                    </a>
+                  ) : (
+                    <div className="text-sm font-medium" style={{ color: '#5C3D2E' }}>{info.value}</div>
+                  )}
                 </div>
               </div>
-            </div>
+            ))}
 
-            <div className="flex items-start gap-4 p-4 bg-muted rounded-2xl">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <Clock size={24} className="text-primary" />
+            {/* Social media */}
+            <div
+              className="p-5 rounded-2xl"
+              style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(212, 149, 106, 0.15)' }}
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#D4956A' }}>
+                Media Sosial
               </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Jam Operasional</h3>
-                <p className="text-muted-foreground">Senin - Minggu: 09.00 - 21.00 WIB</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 p-4 bg-muted rounded-2xl">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <Phone size={24} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Hubungi Kami</h3>
-                <p className="text-muted-foreground">+{settings.whatsappNumber.replace(/(\d{2})(\d{3})(\d{4})(\d{4})/, '$1 $2-$3-$4')}</p>
+              <div className="flex gap-3">
+                {settings?.instagram_url && (
+                  <a
+                    href={settings.instagram_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:shadow-md"
+                    style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)', color: '#8B5E3C' }}
+                  >
+                    📸 Instagram
+                  </a>
+                )}
+                {settings?.tiktok_url && (
+                  <a
+                    href={settings.tiktok_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:shadow-md"
+                    style={{ background: 'rgba(0,0,0,0.05)', color: '#5C3D2E' }}
+                  >
+                    🎵 TikTok
+                  </a>
+                )}
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white transition-all hover:shadow-md hover:opacity-90"
+                  style={{ background: '#25D366' }}
+                >
+                  💬 WhatsApp
+                </a>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-primary/10 via-accent to-secondary/10 rounded-3xl p-8 min-h-[400px] flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-32 h-32 bg-card rounded-full mx-auto mb-6 flex items-center justify-center shadow-lg">
-                <MapPin size={48} className="text-primary" />
+          {/* Map */}
+          <div
+            className="w-full rounded-3xl overflow-hidden shadow-lg"
+            style={{ height: '380px', border: '2px solid rgba(212, 149, 106, 0.2)' }}
+          >
+            {settings?.maps_embed_url ? (
+              <iframe
+                src={settings.maps_embed_url}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div
+                className="w-full h-full flex flex-col items-center justify-center gap-3"
+                style={{ background: 'linear-gradient(135deg, #FADADD, #F5C6A8)' }}
+              >
+                <div className="text-5xl">🗺️</div>
+                <p className="text-sm font-medium" style={{ color: '#8B5E3C' }}>
+                  Tambahkan Google Maps Embed URL di CMS
+                </p>
               </div>
-              <h3 className="text-2xl font-bold text-foreground mb-2">Kota Malang</h3>
-              <p className="text-muted-foreground">Jawa Timur, Indonesia</p>
-              <p className="text-sm text-primary mt-4 font-medium">
-                Pickup & Delivery Available
-              </p>
-            </div>
+            )}
           </div>
         </div>
       </div>

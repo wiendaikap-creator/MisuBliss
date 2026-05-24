@@ -1,318 +1,281 @@
 'use client'
 
-import { useState } from 'react'
-import { useStore, type Product, type Bundle } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { X, Plus, Minus, Send } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import * as db from '@/lib/supabase/db'
 
-interface OrderItem {
+interface Product {
   id: string
   name: string
+  price: number
+  is_available?: boolean
+}
+
+interface CartItem {
+  productId: string
+  productName: string
   price: number
   quantity: number
 }
 
-interface OrderFormProps {
-  initialProduct?: Product
-  initialBundle?: Bundle
-  onClose: () => void
-}
-
-export function OrderForm({ initialProduct, initialBundle, onClose }: OrderFormProps) {
-  const { products, bundles, settings, addOrder } = useStore()
-  const [formData, setFormData] = useState({
+export default function OrderForm() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [form, setForm] = useState({
     customerName: '',
-    address: '',
     phone: '',
+    address: '',
     pickupDate: '',
+    notes: '',
   })
-  
-  const getInitialItems = (): OrderItem[] => {
-    if (initialProduct) {
-      return [{ id: initialProduct.id, name: initialProduct.name, price: initialProduct.price, quantity: 1 }]
-    }
-    if (initialBundle) {
-      return [{ id: `bundle-${initialBundle.id}`, name: initialBundle.name, price: initialBundle.price, quantity: 1 }]
-    }
-    return []
-  }
-  
-  const [orderItems, setOrderItems] = useState<OrderItem[]>(getInitialItems())
 
-  const availableProducts = products.filter((p) => p.isAvailable)
-  const availableBundles = bundles.filter((b) => b.isAvailable)
+  useEffect(() => {
+    db.getProducts()
+      .then((data) => setProducts(data.filter((p: Product) => p.is_available !== false)))
+      .catch(console.error)
+  }, [])
 
-  const addItem = (item: { id: string; name: string; price: number }) => {
-    const existing = orderItems.find((orderItem) => orderItem.id === item.id)
-    if (existing) {
-      setOrderItems(
-        orderItems.map((orderItem) =>
-          orderItem.id === item.id
-            ? { ...orderItem, quantity: orderItem.quantity + 1 }
-            : orderItem
-        )
-      )
-    } else {
-      setOrderItems([...orderItems, { ...item, quantity: 1 }])
-    }
+  const formatPrice = (price: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
+
+  const updateCart = (product: Product, qty: number) => {
+    setCart((prev) => {
+      const existing = prev.find((c) => c.productId === product.id)
+      if (qty <= 0) return prev.filter((c) => c.productId !== product.id)
+      if (existing) return prev.map((c) => c.productId === product.id ? { ...c, quantity: qty } : c)
+      return [...prev, { productId: product.id, productName: product.name, price: product.price, quantity: qty }]
+    })
   }
 
-  const removeItem = (itemId: string) => {
-    setOrderItems(orderItems.filter((item) => item.id !== itemId))
+  const getQty = (productId: string) => cart.find((c) => c.productId === productId)?.quantity || 0
+
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  const handleSubmit = async () => {
+    if (!form.customerName || !form.phone || !form.address || !form.pickupDate || cart.length === 0) {
+      alert('Mohon lengkapi semua data dan pilih minimal 1 produk')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await db.addOrder({
+        customer_name: form.customerName,
+        phone: form.phone,
+        address: form.address,
+        pickup_date: form.pickupDate,
+        notes: form.notes,
+        items: cart.map(({ productId, productName, price, quantity }) => ({ productId, productName, price, quantity })),
+        total_amount: total,
+        status: 'pending',
+      })
+      setSuccess(true)
+      setCart([])
+      setForm({ customerName: '', phone: '', address: '', pickupDate: '', notes: '' })
+    } catch (err) {
+      console.error(err)
+      alert('Gagal mengirim pesanan. Silakan coba lagi.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const updateQuantity = (itemId: string, delta: number) => {
-    setOrderItems(
-      orderItems
-        .map((item) =>
-          item.id === itemId
-            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
+  const minDate = new Date()
+  minDate.setDate(minDate.getDate() + 1)
+  const minDateStr = minDate.toISOString().split('T')[0]
+
+  if (success) {
+    return (
+      <section id="order" className="py-24" style={{ background: '#FFF0EB' }}>
+        <div className="max-w-lg mx-auto px-6 text-center">
+          <div
+            className="rounded-3xl p-12 shadow-lg"
+            style={{ background: 'white', border: '1px solid rgba(212, 149, 106, 0.2)' }}
+          >
+            <div className="text-6xl mb-5">🎉</div>
+            <h3
+              className="text-2xl font-bold mb-3"
+              style={{ color: '#5C3D2E', fontFamily: "'Playfair Display', serif" }}
+            >
+              Pesanan Diterima!
+            </h3>
+            <p className="mb-6" style={{ color: '#8B6355' }}>
+              Terima kasih telah memesan. Kami akan segera menghubungi Anda untuk konfirmasi pesanan.
+            </p>
+            <button
+              onClick={() => setSuccess(false)}
+              className="px-8 py-3 rounded-full text-white font-semibold transition-all hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #D4956A, #C1806B)' }}
+            >
+              Pesan Lagi
+            </button>
+          </div>
+        </div>
+      </section>
     )
   }
 
-  const totalAmount = orderItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  )
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
-
-  const generateWhatsAppMessage = () => {
-    const itemsList = orderItems
-      .map((item) => `- ${item.name} x${item.quantity} (${formatPrice(item.price * item.quantity)})`)
-      .join('\n')
-
-    return `Halo MisuBliss, saya ingin memesan tiramisu
-
-*Data Pemesan:*
-Nama: ${formData.customerName}
-Alamat: ${formData.address}
-No. HP: ${formData.phone}
-Tanggal Pickup: ${formData.pickupDate}
-
-*Pesanan:*
-${itemsList}
-
-*Total: ${formatPrice(totalAmount)}*
-
-Terima kasih!`
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (orderItems.length === 0) {
-      alert('Silakan pilih minimal satu produk')
-      return
-    }
-
-    // Save order to store
-    addOrder({
-      customerName: formData.customerName,
-      address: formData.address,
-      phone: formData.phone,
-      items: orderItems.map((item) => ({
-        productId: item.id,
-        productName: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      pickupDate: formData.pickupDate,
-      status: 'pending',
-      totalAmount,
-    })
-
-    // Generate WhatsApp link and redirect
-    const message = encodeURIComponent(generateWhatsAppMessage())
-    const whatsappUrl = `https://wa.me/${settings.whatsappNumber}?text=${message}`
-    window.open(whatsappUrl, '_blank')
-    
-    onClose()
-  }
-
   return (
-    <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-          <CardTitle className="text-2xl text-foreground">Form Pemesanan</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X size={24} />
-          </Button>
-        </CardHeader>
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Customer Info */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-foreground">Data Pemesan</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nama Lengkap</Label>
-                  <Input
-                    id="name"
-                    value={formData.customerName}
-                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                    placeholder="Masukkan nama Anda"
-                    required
-                    className="bg-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">No. HP / WhatsApp</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="08xxxxxxxxxx"
-                    required
-                    className="bg-input"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Alamat</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Masukkan alamat lengkap"
-                  required
-                  className="bg-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickupDate">Tanggal Pickup</Label>
-                <Input
-                  id="pickupDate"
-                  type="date"
-                  value={formData.pickupDate}
-                  onChange={(e) => setFormData({ ...formData, pickupDate: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                  className="bg-input"
-                />
-              </div>
-            </div>
+    <section
+      id="order"
+      className="py-24 relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, #FFF0EB 0%, #FADADD 100%)' }}
+    >
+      <div className="max-w-5xl mx-auto px-6">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div
+            className="inline-block text-sm font-semibold uppercase tracking-widest mb-3 px-4 py-1.5 rounded-full"
+            style={{ background: 'rgba(212, 149, 106, 0.12)', color: '#D4956A' }}
+          >
+            Formulir Pesanan
+          </div>
+          <h2
+            className="text-3xl md:text-4xl font-bold mb-4"
+            style={{ color: '#5C3D2E', fontFamily: "'Playfair Display', serif" }}
+          >
+            Pesan Kue Sekarang
+          </h2>
+          <p className="text-base max-w-lg mx-auto" style={{ color: '#8B6355' }}>
+            Isi formulir di bawah dan kami akan menghubungi Anda untuk konfirmasi
+          </p>
+        </div>
 
-            {/* Product Selection */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-foreground">Pilih Menu</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {availableProducts.map((product) => (
-                  <Button
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Left: Product Selection */}
+          <div
+            className="rounded-3xl p-6 space-y-4"
+            style={{ background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(212, 149, 106, 0.15)' }}
+          >
+            <h3 className="font-bold text-base" style={{ color: '#5C3D2E' }}>Pilih Produk</h3>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {products.map((product) => {
+                const qty = getQty(product.id)
+                return (
+                  <div
                     key={product.id}
-                    type="button"
-                    variant="outline"
-                    className="h-auto py-3 flex flex-col items-center gap-1 hover:bg-primary/10 hover:border-primary"
-                    onClick={() => addItem({ id: product.id, name: product.name, price: product.price })}
+                    className="flex items-center justify-between p-3 rounded-2xl transition-all"
+                    style={{
+                      background: qty > 0 ? 'rgba(212, 149, 106, 0.08)' : 'rgba(255,255,255,0.5)',
+                      border: `1px solid ${qty > 0 ? 'rgba(212, 149, 106, 0.3)' : 'rgba(212, 149, 106, 0.1)'}`,
+                    }}
                   >
-                    <span className="text-sm font-medium text-foreground">{product.name}</span>
-                    <span className="text-xs text-muted-foreground">{formatPrice(product.price)}</span>
-                  </Button>
-                ))}
-              </div>
+                    <div>
+                      <div className="text-sm font-medium" style={{ color: '#5C3D2E' }}>{product.name}</div>
+                      <div className="text-xs" style={{ color: '#C1806B' }}>{formatPrice(product.price)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateCart(product, qty - 1)}
+                        disabled={qty === 0}
+                        className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm transition-all disabled:opacity-30"
+                        style={{ background: 'rgba(193, 128, 107, 0.15)', color: '#C1806B' }}
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold" style={{ color: '#5C3D2E' }}>{qty}</span>
+                      <button
+                        onClick={() => updateCart(product, qty + 1)}
+                        className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-sm text-white transition-all"
+                        style={{ background: 'linear-gradient(135deg, #D4956A, #C1806B)' }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {products.length === 0 && (
+                <p className="text-sm text-center py-8" style={{ color: '#8B6355' }}>Memuat produk...</p>
+              )}
             </div>
 
-            {/* Bundle Selection */}
-            {availableBundles.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-foreground">Paket Bundle</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {availableBundles.map((bundle) => (
-                    <Button
-                      key={bundle.id}
-                      type="button"
-                      variant="outline"
-                      className="h-auto py-3 flex flex-col items-center gap-1 hover:bg-primary/10 hover:border-primary"
-                      onClick={() => addItem({ id: `bundle-${bundle.id}`, name: bundle.name, price: bundle.price })}
-                    >
-                      <span className="text-sm font-medium text-foreground">{bundle.name}</span>
-                      <span className="text-xs text-muted-foreground">{formatPrice(bundle.price)}</span>
-                    </Button>
-                  ))}
+            {/* Cart summary */}
+            {cart.length > 0 && (
+              <div className="pt-4 space-y-2 border-t" style={{ borderColor: 'rgba(212, 149, 106, 0.15)' }}>
+                {cart.map((item) => (
+                  <div key={item.productId} className="flex justify-between text-sm">
+                    <span style={{ color: '#5C3D2E' }}>{item.productName} x{item.quantity}</span>
+                    <span style={{ color: '#C1806B' }}>{formatPrice(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+                <div
+                  className="flex justify-between font-bold pt-2 border-t"
+                  style={{ borderColor: 'rgba(212, 149, 106, 0.15)', color: '#5C3D2E' }}
+                >
+                  <span>Total</span>
+                  <span style={{ color: '#C1806B', fontFamily: "'Playfair Display', serif" }}>{formatPrice(total)}</span>
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Order Items */}
-            {orderItems.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-foreground">Pesanan Anda</h3>
-                <div className="space-y-3">
-                  {orderItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{item.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatPrice(item.price)} x {item.quantity}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(item.id, -1)}
-                        >
-                          <Minus size={14} />
-                        </Button>
-                        <span className="w-8 text-center font-medium">{item.quantity}</span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(item.id, 1)}
-                        >
-                          <Plus size={14} />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <X size={14} />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between items-center pt-4 border-t border-border">
-                  <span className="text-lg font-semibold text-foreground">Total</span>
-                  <span className="text-2xl font-bold text-primary">{formatPrice(totalAmount)}</span>
-                </div>
+          {/* Right: Customer Info */}
+          <div
+            className="rounded-3xl p-6 space-y-4"
+            style={{ background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(212, 149, 106, 0.15)' }}
+          >
+            <h3 className="font-bold text-base" style={{ color: '#5C3D2E' }}>Data Pemesan</h3>
+
+            {[
+              { key: 'customerName', label: 'Nama Lengkap', type: 'text', placeholder: 'Masukkan nama Anda' },
+              { key: 'phone', label: 'Nomor WhatsApp', type: 'tel', placeholder: '08xxxxxxxxxx' },
+              { key: 'address', label: 'Alamat Lengkap', type: 'text', placeholder: 'Untuk pengiriman / pickup' },
+              { key: 'pickupDate', label: 'Tanggal Pickup / Kirim', type: 'date', placeholder: '' },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#5C3D2E' }}>
+                  {field.label}
+                </label>
+                <input
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  min={field.key === 'pickupDate' ? minDateStr : undefined}
+                  value={form[field.key as keyof typeof form]}
+                  onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.8)',
+                    border: '1px solid rgba(212, 149, 106, 0.25)',
+                    color: '#5C3D2E',
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = '#D4956A')}
+                  onBlur={(e) => (e.target.style.borderColor = 'rgba(212, 149, 106, 0.25)')}
+                />
               </div>
-            )}
+            ))}
 
-            <Button
-              type="submit"
-              className="w-full bg-primary text-primary-foreground hover:opacity-90 rounded-full py-6 text-lg"
-              disabled={orderItems.length === 0}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: '#5C3D2E' }}>
+                Catatan (Opsional)
+              </label>
+              <textarea
+                placeholder="Permintaan khusus, desain, tulisan di kue, dll"
+                value={form.notes}
+                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all resize-none"
+                style={{
+                  background: 'rgba(255,255,255,0.8)',
+                  border: '1px solid rgba(212, 149, 106, 0.25)',
+                  color: '#5C3D2E',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#D4956A')}
+                onBlur={(e) => (e.target.style.borderColor = 'rgba(212, 149, 106, 0.25)')}
+              />
+            </div>
+
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || cart.length === 0}
+              className="w-full py-4 rounded-xl font-semibold text-white text-sm transition-all duration-200 disabled:opacity-50 hover:shadow-lg hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(135deg, #D4956A 0%, #C1806B 100%)' }}
             >
-              <Send size={20} className="mr-2" />
-              Kirim Pesanan via WhatsApp
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              {submitting ? '⏳ Mengirim...' : `🛍️ Pesan Sekarang${total > 0 ? ` · ${formatPrice(total)}` : ''}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
