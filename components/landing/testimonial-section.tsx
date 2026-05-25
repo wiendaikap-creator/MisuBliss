@@ -5,11 +5,10 @@ import * as db from '@/lib/supabase/db'
 
 interface Testimonial {
   id: string
-  customer_name: string
-  message: string
+  name: string        // kolom DB: name
+  comment: string     // kolom DB: comment
   rating: number
-  avatar_url?: string
-  product_name?: string
+  image?: string      // kolom DB: image
 }
 
 export default function TestimonialSection() {
@@ -42,7 +41,6 @@ export default function TestimonialSection() {
     if (autoRef.current) clearInterval(autoRef.current)
   }
 
-  // Sync desktop carousel scroll when current changes
   useEffect(() => {
     if (!scrollRef.current) return
     const card = scrollRef.current.children[current] as HTMLElement
@@ -137,12 +135,12 @@ export default function TestimonialSection() {
                     transform: i === current ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
-                  {/* Avatar */}
+                  {/* Avatar + Nama */}
                   <div className="flex items-center gap-3 mb-4">
-                    {t.avatar_url ? (
+                    {t.image ? (
                       <img
-                        src={t.avatar_url}
-                        alt={t.customer_name}
+                        src={t.image}
+                        alt={t.name}
                         className="w-12 h-12 rounded-full object-cover shadow-md flex-shrink-0"
                         style={{ border: '3px solid rgba(212, 149, 106, 0.3)' }}
                         draggable={false}
@@ -156,18 +154,13 @@ export default function TestimonialSection() {
                           border: '3px solid rgba(212, 149, 106, 0.3)',
                         }}
                       >
-                        {t.customer_name?.charAt(0)?.toUpperCase() || 'K'}
+                        {t.name?.charAt(0)?.toUpperCase() || 'K'}
                       </div>
                     )}
                     <div>
                       <div className="font-semibold text-sm" style={{ color: '#5C3D2E' }}>
-                        {t.customer_name}
+                        {t.name}
                       </div>
-                      {t.product_name && (
-                        <div className="text-xs" style={{ color: '#8B6355' }}>
-                          membeli {t.product_name}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -176,12 +169,12 @@ export default function TestimonialSection() {
                     {stars(t.rating || 5)}
                   </div>
 
-                  {/* Message */}
+                  {/* Komentar */}
                   <p
                     className="text-sm leading-relaxed flex-1"
                     style={{ color: '#5C3D2E', fontFamily: "'Playfair Display', serif", fontStyle: 'italic' }}
                   >
-                    "{t.message}"
+                    "{t.comment}"
                   </p>
                 </div>
               ))}
@@ -205,7 +198,7 @@ export default function TestimonialSection() {
               </div>
             )}
 
-            {/* Navigation arrows (desktop) */}
+            {/* Navigasi panah (desktop) */}
             {testimonials.length > 1 && (
               <div className="hidden md:flex justify-center gap-3 mt-6">
                 <button
