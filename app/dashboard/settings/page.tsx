@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
+import {
   Store,
   MapPin,
   Phone,
@@ -25,6 +25,8 @@ import {
   Upload,
   Layout,
   Info,
+  Clock,
+  Map,
 } from 'lucide-react'
 
 function TikTokIcon({ size = 20 }: { size?: number }) {
@@ -125,6 +127,9 @@ function ImageUploader({
 }
 
 export default function SettingsPage() {
+  // ── FIX: semua useRef/useState/useCallback harus di atas, sebelum conditional return ──
+  const logoFileRef = useRef<HTMLInputElement>(null)
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -145,13 +150,15 @@ export default function SettingsPage() {
     aboutTitle: '',
     aboutDescription: '',
     aboutImageUrl: '',
-    // About cards (stored as JSON string in about_cards_json field)
     aboutCards: [
       { icon: '🥚', title: 'Bahan Segar', desc: 'Dipilih setiap hari dari supplier terpercaya' },
       { icon: '❤️', title: 'Dibuat dengan Cinta', desc: 'Setiap kue dikerjakan dengan detail dan dedikasi' },
       { icon: '🎨', title: 'Desain Custom', desc: 'Bisa disesuaikan dengan tema dan keinginan Anda' },
       { icon: '🚚', title: 'Pengiriman Aman', desc: 'Dikemas khusus agar tiba dalam kondisi sempurna' },
     ] as { icon: string; title: string; desc: string }[],
+    // ── BARU: Lokasi ──
+    openHours: '',
+    mapsEmbedUrl: '',
   })
   const [serviceAreas, setServiceAreas] = useState<string[]>([])
   const [newArea, setNewArea] = useState('')
@@ -203,6 +210,9 @@ export default function SettingsPage() {
           aboutDescription: (settingsData as any).about_description || '',
           aboutImageUrl: (settingsData as any).about_image_url || '',
           aboutCards,
+          // ── BARU: Lokasi ──
+          openHours: (settingsData as any).open_hours || '',
+          mapsEmbedUrl: (settingsData as any).maps_embed_url || '',
         })
         setServiceAreas(settingsData.service_areas || [])
       }
@@ -262,6 +272,9 @@ export default function SettingsPage() {
         about_image_url: formData.aboutImageUrl,
         about_cards_json: JSON.stringify(formData.aboutCards),
         service_areas: serviceAreas,
+        // ── BARU: Lokasi ──
+        open_hours: formData.openHours,
+        maps_embed_url: formData.mapsEmbedUrl,
       } as any)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -367,6 +380,7 @@ export default function SettingsPage() {
     setFormData({ ...formData, aboutCards: cards })
   }
 
+  // ── Conditional return SETELAH semua hook ──
   if (loading) {
     return (
       <DashboardShell>
@@ -377,13 +391,11 @@ export default function SettingsPage() {
     )
   }
 
-  const logoFileRef = useRef<HTMLInputElement>(null)
-
   return (
     <DashboardShell>
-      <DashboardHeader 
-        title="Pengaturan" 
-        description="Kelola profil toko, hero, tentang kami, bundle, dan testimoni"
+      <DashboardHeader
+        title="Pengaturan"
+        description="Kelola profil toko, hero, tentang kami, lokasi, bundle, dan testimoni"
       />
 
       <div className="grid gap-6">
@@ -418,7 +430,7 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            
+
             {/* Logo Upload */}
             <div className="space-y-2">
               <Label>Logo Toko</Label>
@@ -511,11 +523,6 @@ export default function SettingsPage() {
               placeholder="Upload foto untuk ditampilkan di hero section"
               previewClass="w-full h-52 object-cover rounded-lg"
             />
-            {formData.heroImageUrl && (
-              <p className="text-xs text-muted-foreground">
-                ✓ Foto hero akan langsung tampil di landing page setelah disimpan.
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -611,7 +618,7 @@ export default function SettingsPage() {
                 className="bg-input"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="address">Alamat Lengkap</Label>
               <Input
@@ -652,6 +659,61 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* ── Lokasi Kami (BARU) ── */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <MapPin size={20} />
+              Lokasi Kami (Landing Page)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="openHours" className="flex items-center gap-2">
+                <Clock size={15} /> Jam Operasional
+              </Label>
+              <Input
+                id="openHours"
+                value={formData.openHours}
+                onChange={(e) => setFormData({ ...formData, openHours: e.target.value })}
+                placeholder="Senin – Sabtu, 08.00 – 17.00 WIB"
+                className="bg-input"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mapsEmbedUrl" className="flex items-center gap-2">
+                <Map size={15} /> Google Maps Embed URL
+              </Label>
+              <Input
+                id="mapsEmbedUrl"
+                value={formData.mapsEmbedUrl}
+                onChange={(e) => setFormData({ ...formData, mapsEmbedUrl: e.target.value })}
+                placeholder="https://www.google.com/maps/embed?pb=..."
+                className="bg-input"
+              />
+              <p className="text-xs text-muted-foreground">
+                Buka Google Maps → cari lokasi → klik <strong>Share</strong> → <strong>Embed a map</strong> → salin URL dari atribut <code>src</code> iframe.
+              </p>
+            </div>
+
+            {/* Preview map */}
+            {formData.mapsEmbedUrl && (
+              <div className="rounded-xl overflow-hidden border border-border" style={{ height: 240 }}>
+                <iframe
+                  src={formData.mapsEmbedUrl}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ── Service Areas ── */}
         <Card className="border-border">
           <CardHeader>
@@ -673,7 +735,7 @@ export default function SettingsPage() {
                 <Plus size={18} />
               </Button>
             </div>
-            
+
             <div className="flex flex-wrap gap-2">
               {serviceAreas.map((area) => (
                 <span
@@ -804,7 +866,7 @@ export default function SettingsPage() {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button 
+          <Button
             onClick={handleSave}
             disabled={saving}
             className="bg-primary text-primary-foreground hover:opacity-90"
@@ -826,7 +888,6 @@ export default function SettingsPage() {
               </Button>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
-              {/* Image upload for bundle */}
               <ImageUploader
                 label="Foto Bundle"
                 value={bundleForm.image}
